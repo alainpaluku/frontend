@@ -1,0 +1,247 @@
+// src/pages/secretariat_general/SecretariatGeneralTeachers.tsx
+import { useState } from "react"
+import { UserSquare2, Plus, UserCheck, UserX } from "lucide-react"
+import { PageHeader } from "@/components/ui/PageHeader"
+import { KPICard } from "@/components/ui/KPICard"
+import { DataTable, type Column } from "@/components/ui/DataTable"
+import { StatusBadge } from "@/components/ui/StatusBadge"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { useStore } from "@/hooks/usePageData"
+import { addTeacher, generateId } from "@/lib/store"
+import type { Teacher } from "@/types"
+import { toast } from "sonner"
+
+interface TeacherRow extends Teacher {
+  facultyName: string
+  courseCount: number
+}
+
+export function SecretariatGeneralTeachers() {
+  const store  = useStore()
+  const titles = store.teacherTitles
+
+  const [open, setOpen] = useState(false)
+  const [form, setForm] = useState({
+    first_name: "",
+    middle_name:  "",
+    last_name: "",
+    description: "",
+    email:     "",
+    phone:     "",
+    faculty_id: "",
+    title:     titles[0] ?? "Professeur",
+  })
+
+  const rows: TeacherRow[] = store.teachers.map((t) => ({
+    ...t,
+    facultyName: store.faculties.find((f) => f.id === t.faculty_id)?.name ?? "—",
+    courseCount: store.courses.filter((c) => c.teacher_id === t.id).length,
+  }))
+
+  const active  = rows.filter((r) => r.status === "active").length
+  const pending = rows.filter((r) => r.status === "pending").length
+
+  function handleAdd() {
+    if (!form.first_name.trim() || !form.middle_name.trim() || !form.last_name.trim() || !form.email.trim() || !form.faculty_id) return
+    addTeacher({
+      matricule: `T${generateId()}`,
+      first_name: form.first_name.trim(),
+      middle_name: form.middle_name.trim(),
+      last_name:  form.last_name.trim(),
+      description: form.description.trim(),
+      email:     form.email.trim(),
+      phone:     form.phone.trim(),
+      faculty_id: form.faculty_id,
+      title:     form.title,
+      courseIds: [],
+      status:    "active",
+    })
+
+    // Simulate sending email
+    toast.success(`Enseignant ajouté. Un email d'invitation a été envoyé à ${form.email}`)
+
+    setForm({ first_name: "", middle_name: "", last_name: "", description: "", email: "", phone: "", faculty_id: "", title: titles[0] ?? "Professeur" })
+    setOpen(false)
+  }
+
+  const columns: Column<TeacherRow>[] = [
+    {
+      key: "name",
+      header: "Enseignant",
+      render: (t) => (
+        <div className="min-w-0">
+          <p className="font-medium text-foreground">{t.first_name} {t.middle_name || ""} {t.last_name}</p>
+          <p className="font-mono text-xs text-muted-foreground">{t.matricule}</p>
+        </div>
+      ),
+    },
+    { key: "title",   header: "Titre",  render: (t) => t.title },
+    { key: "faculty", header: "Faculté", render: (t) => t.facultyName },
+    {
+      key: "email",
+      header: "Email",
+      render: (t) => <span className="truncate text-xs text-muted-foreground">{t.email}</span>,
+    },
+    {
+      key: "courses",
+      header: "Cours",
+      align: "center",
+      render: (t) => <span className="text-sm font-medium text-foreground">{t.courseCount}</span>,
+    },
+    {
+      key: "status",
+      header: "Statut",
+      align: "right",
+      render: (t) => (
+        <div className="flex justify-end">
+          <StatusBadge status={t.status} />
+        </div>
+      ),
+    },
+  ]
+
+  return (
+    <>
+      <PageHeader
+        title="Enseignants"
+        subtitle="Gérez le corps enseignant de l'institution."
+        action={
+          <Button onClick={() => setOpen(true)} className="gap-1.5">
+            <Plus className="size-4" />
+            Ajouter un enseignant
+          </Button>
+        }
+      />
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <KPICard title="Total enseignants" value={rows.length} icon={UserSquare2} colorClass="bg-chart-3/15 text-chart-3" />
+        <KPICard title="Actifs"            value={active}      icon={UserCheck}   colorClass="bg-chart-1/10 text-chart-1" />
+        <KPICard title="En attente"        value={pending}     icon={UserX}       colorClass="bg-chart-4/10 text-chart-4" />
+      </div>
+
+      <DataTable
+        columns={columns}
+        data={rows}
+        rowKey={(t) => t.id}
+        emptyTitle="Aucun enseignant"
+        emptyDescription="Ajoutez des enseignants à l'institution."
+      />
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Ajouter un enseignant</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-2">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label>Nom</Label>
+                <Input
+                  placeholder="Nom"
+                  value={form.last_name}
+                  onChange={(e) => setForm((f) => ({ ...f, last_name: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Postnom</Label>
+                <Input
+                  placeholder="Postnom"
+                  value={form.middle_name}
+                  onChange={(e) => setForm((f) => ({ ...f, middle_name: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Prénom</Label>
+                <Input
+                  placeholder="Prénom"
+                  value={form.first_name}
+                  onChange={(e) => setForm((f) => ({ ...f, first_name: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Email</Label>
+              <Input
+                type="email"
+                placeholder="prenom.nom@ista-goma.cd"
+                value={form.email}
+                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Téléphone</Label>
+              <Input
+                placeholder="+243 9XX XXX XXX"
+                value={form.phone}
+                onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Description / Bio</Label>
+              <Input
+                placeholder="Spécialiste en réseaux..."
+                value={form.description}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Faculté</Label>
+                <Select
+                  value={form.faculty_id}
+                  onValueChange={(v) => setForm((f) => ({ ...f, faculty_id: v }))}
+                >
+                  <SelectTrigger><SelectValue placeholder="Choisir…" /></SelectTrigger>
+                  <SelectContent>
+                    {store.faculties.map((f) => (
+                      <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Titre</Label>
+                <Select
+                  value={form.title}
+                  onValueChange={(v) => setForm((f) => ({ ...f, title: v }))}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {titles.map((t) => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Annuler</Button>
+            <Button
+              onClick={handleAdd}
+              disabled={!form.first_name.trim() || !form.middle_name.trim() || !form.last_name.trim() || !form.email.trim() || !form.faculty_id}
+            >
+              Ajouter
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
